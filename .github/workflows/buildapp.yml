@@ -136,11 +136,22 @@ jobs:
           # Get the version number of the YouTube app and store it
           echo "YT_VERSION=$(grep -A 1 '<key>CFBundleVersion</key>' tmp/Payload/YouTube.app/Info.plist | grep '<string>' | awk -F'[><]' '{print $3}')" >> $GITHUB_ENV
           # Fetch the latest YTLite version from GitHub API
-          YTLITE_VERSION=$(curl -s https://api.github.com/repos/dayanch96/YTLite/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-          if [ -z "$YTLITE_VERSION" ] || [ "$YTLITE_VERSION" = "null" ]; then
-            echo "::error::Failed to fetch latest YTLite version from GitHub API"
+          RESPONSE=$(curl -sf "https://api.github.com/repos/dayanch96/YTLite/releases/latest" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}")
+
+          if [ $? -ne 0 ] || [ -z "$RESPONSE" ]; then
+            echo "::error::curl failed to reach GitHub API"
             exit 1
           fi
+
+          YTLITE_VERSION=$(echo "$RESPONSE" | jq -r '.tag_name // empty' | sed 's/^v//')
+          if [ -z "$YTLITE_VERSION" ]; then
+            echo "::error::Failed to parse YTLite version. API response:"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
           echo "YTLITE_VERSION=$YTLITE_VERSION" >> $GITHUB_ENV
           echo "Fetched YTLite version: $YTLITE_VERSION"
           # Remove contents in the iPA that interfere with sideloading
